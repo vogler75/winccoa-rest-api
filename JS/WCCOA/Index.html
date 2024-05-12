@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript"
+        src="https://www.google.com/jsapi?autoload={'modules':[{'name':'visualization','version':'1','packages':['gauge', 'corechart']}]}">
+</script>
+<script src="WCCOA.js"></script>
+<script src="jquery-1.11.2.min.js"></script>
+
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <style>
+      html, body, #map-canvas {
+        height: 500px;
+        margin: 0px;
+        padding: 0px
+      }
+    </style>
+    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&signed_in=true"></script>
+   
+
+
+<script type="text/javascript">
+
+    var gauge;
+    var chart, chartTable;
+
+    var GaugeClass = function () {
+        this.gaugeOptions = { min: 0, max: 200, yellowFrom: 100, yellowTo: 150,
+            redFrom: 150, redTo: 200, minorTicks: 5
+        };
+        this.drawGauge = function () {
+            gaugeData = new google.visualization.DataTable();
+            gaugeData.addColumn('number', 'Value');
+            gaugeData.addColumn('number', 'Speed');
+            gaugeData.addRows(2);
+
+            gaugeData.setCell(0, 0, 0);
+            gaugeData.setCell(0, 1, 0);
+
+            gauge = new google.visualization.Gauge(document.getElementById('gauge_div'));
+            gauge.draw(gaugeData, this.gaugeOptions);
+        }
+
+        this.setValue = function (idx, value) {
+            gaugeData.setValue(0, idx, value);
+            gauge.draw(gaugeData, this.gaugeOptions);
+        }
+    }
+
+    var ChartClass = function () {
+        this.chartOptions = {
+            width: 1000,
+            height: 200,
+            title: 'Trend'
+        }
+        this.initChart = function () {
+            chart = new google.visualization.LineChart(document.getElementById('chart_div'));
+            chartTable = new google.visualization.DataTable();
+            chartTable.addColumn('datetime', 'ts');
+            chartTable.addColumn('number', 'dp');
+        }
+        this.drawChart = function (ts, value) {
+            var d = new Date(ts.toLocaleString());
+            chartTable.addRow([d, value]);
+            if (chartTable.getNumberOfRows() > 100) { chartTable.removeRow(0); }
+            chart.draw(chartTable, this.chartOptions);
+        }
+    }
+
+
+    var MyGauge = new GaugeClass();
+    var MyChart = new ChartClass();
+
+    google.setOnLoadCallback(MyGauge.drawGauge);
+    google.setOnLoadCallback(MyChart.initChart);
+
+    google.maps.event.addDomListener(window, 'load', initmap);
+
+    //var oa = new WCCOABase("192.168.1.7:8080");
+    var oa = new WCCOABase("Win8x64DE1:8080");
+
+    oa.zoomTo = function (name) {        
+        map.setZoom(7);
+        map.setCenter(markers[name].getPosition());
+    }
+
+    oa.setIcon = function (name, alert) {
+        if (alert)
+            markers[name].setAnimation(google.maps.Animation.BOUNCE);
+        else
+            markers[name].setAnimation(null);
+    }
+
+    function doOpen() {
+        oa.Open(function () { btnConn.style.backgroundColor = "green"; });
+    }
+
+    function doQueryConnect() {
+        oa.dpConnectQuery("SELECT '_original.._value', '_original.._stime' FROM 'PerfTest_1.Float'", false, function (data) {
+            MyGauge.setValue(0, data["table"][1][1]);
+            MyChart.drawChart(data["table"][1][2], data["table"][1][1]);
+        });
+        oa.dpConnectQuery("SELECT '_original.._value' FROM 'Test_1.Float'", true, function (data) {
+            MyGauge.setValue(1, data["table"][1][1]);
+        });
+    }
+
+    function setUIButton() {
+        btnJS.style.backgroundColor = 'silver';
+        oa.evalScript("int main() { btnUI.backCol(\"green\"); TEXT_FIELD1.text=\"" + mydbg.value + "\"; return 0; } ");
+    }
+
+    function setUIText(txt) {
+        console.log("setUIText", txt);
+        oa.evalScript("int main() { TEXT_FIELD1.text=\"" + txt + "\"; openTrend(); return 0; } ");
+    }
+
+
+
+
+
+
+    function initmap() {
+
+        var mapOptions = {
+            zoom: 4,
+            center: new google.maps.LatLng(-25.363882, 131.044922)
+        };
+
+        // global!!!
+        map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
+
+
+        var marker1 = new google.maps.Marker({
+            position: map.getCenter(),
+            map: map,
+            title: 'Headquarter'
+        });
+
+        var marker2 = new google.maps.Marker({
+            position: new google.maps.LatLng(-22.263882, 133.04492200000004),
+            map: map,
+            title: 'Powerplant'
+        });
+
+        var marker3 = new google.maps.Marker({
+            position: new google.maps.LatLng(-12.263882, 135.04492200000004),
+            map: map,
+            title: 'Windmill'
+        });
+
+        var marker4 = new google.maps.Marker({
+            position: new google.maps.LatLng(-35.263882, 150.04492200000004),
+            map: map,
+            title: 'Reactor'
+        });
+
+        // global!!!
+        markers = new Object();
+        markers[marker1.title] = marker1;
+        markers[marker2.title] = marker2;
+        markers[marker3.title] = marker3;
+        markers[marker4.title] = marker4;
+
+        google.maps.event.addListener(marker1, 'click', function () { setUIText(marker1.title); });
+        google.maps.event.addListener(marker2, 'click', function () { setUIText(marker2.title); });
+        google.maps.event.addListener(marker3, 'click', function () { setUIText(marker3.title); });
+        google.maps.event.addListener(marker4, 'click', function () { setUIText(marker4.title); });
+
+
+        /*
+        google.maps.event.addListener(map, 'center_changed', function () {
+        // 3 seconds after the center of the map has changed, pan back to the
+        // marker.
+        window.setTimeout(function () {
+        map.panTo(marker.getPosition());
+        }, 3000);
+        });
+        */
+
+        /*
+        google.maps.event.addListener(marker2, 'click', function () {
+        console.log(marker2.position.toString());
+        setUIText(marker2.title + " " + marker2.position.toString());
+        });*/
+    }
+
+
+    //oa.zoomTo("Windmill");
+
+
+</script>
+</head>
+<body>
+
+<input id="btnConn" type="button" value="Connect UI/JS" onclick='doOpen();' />
+<input type="button" value="dpQueryConnect" onclick='doQueryConnect();' />
+<input id="btnJS" type="button" value="execute ui-ctrl script" onclick='setUIButton();' />
+<input id="mydbg" type="text" value="">
+<br>
+<div id="gauge_div" style="width:280px; height: 140px;"></div>
+<br>
+<div id="chart_div" style="width:500px; height: 200px;"></div>
+<br>
+<div id="map-canvas"></div>
+<br>
+
+
+
+
+
+</body>
+</html>
